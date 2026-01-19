@@ -1,0 +1,96 @@
+# AlertManager Configuration for GitHub Monitoring
+# Author: Mohamed Ben Lakhoua (AI-Augmented with Claude Code)
+# License: MIT
+
+global:
+  resolve_timeout: 5m
+  # Uncomment and configure for Slack notifications
+  # slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+# Templates for notification messages
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree for alert routing
+route:
+  group_by: ['alertname', 'service', 'severity']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default-receiver'
+
+  routes:
+    # Critical alerts
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 5m
+
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 30m
+
+    # Info alerts
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 1m
+      repeat_interval: 4h
+
+# Inhibition rules - suppress alerts when certain conditions are met
+inhibit_rules:
+  # Inhibit warning if critical is firing for the same alert
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+
+  # Inhibit performance alerts if service is down
+  - source_match:
+      alertname: 'GitHubDown'
+    target_match_re:
+      alertname: '(GitHubSlowResponse|GitHubHighDNSLatency|GitHubSSLHandshakeSlow)'
+    equal: ['instance']
+
+# Receivers - notification channels
+receivers:
+  - name: 'default-receiver'
+    # Add webhook, email, or other notification methods here
+    # webhook_configs:
+    #   - url: 'http://your-webhook-endpoint'
+
+  - name: 'critical-alerts'
+    # Example: Slack for critical alerts
+    # slack_configs:
+    #   - channel: '#alerts-critical'
+    #     title: '🚨 Critical Alert: {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    #     send_resolved: true
+
+    # Example: Email for critical alerts
+    # email_configs:
+    #   - to: 'ops-team@example.com'
+    #     from: 'alertmanager@example.com'
+    #     smarthost: 'smtp.example.com:587'
+    #     auth_username: 'alertmanager@example.com'
+    #     auth_password: 'password'
+    #     headers:
+    #       Subject: '🚨 Critical: {{ .GroupLabels.alertname }}'
+
+  - name: 'warning-alerts'
+    # Example: Slack for warnings
+    # slack_configs:
+    #   - channel: '#alerts-warning'
+    #     title: '⚠️ Warning: {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    #     send_resolved: true
+
+  - name: 'info-alerts'
+    # Example: Log to webhook
+    # webhook_configs:
+    #   - url: 'http://your-logging-endpoint'

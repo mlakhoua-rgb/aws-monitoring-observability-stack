@@ -1,0 +1,16 @@
+# Grafana Datasource Provisioning - Prometheus
+# Author: Mohamed Ben Lakhoua (AI-Augmented with Claude Code)
+# License: MIT
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 30s

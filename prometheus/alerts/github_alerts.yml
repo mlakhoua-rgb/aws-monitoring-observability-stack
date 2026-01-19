@@ -1,0 +1,144 @@
+# GitHub Monitoring Alert Rules
+# Author: Mohamed Ben Lakhoua (AI-Augmented with Claude Code)
+# License: MIT
+
+groups:
+  - name: github_availability
+    interval: 30s
+    rules:
+      - alert: GitHubDown
+        expr: probe_success{job="github-http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: github
+        annotations:
+          summary: "GitHub endpoint is down"
+          description: "GitHub endpoint {{ $labels.instance }} has been unreachable for more than 2 minutes.\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubDegraded
+        expr: avg_over_time(probe_success{job="github-http"}[5m]) < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          service: github
+        annotations:
+          summary: "GitHub availability degraded"
+          description: "GitHub endpoint {{ $labels.instance }} has availability below 95% over the last 5 minutes.\n  VALUE = {{ $value | humanizePercentage }}\n  LABELS: {{ $labels }}"
+
+  - name: github_performance
+    interval: 30s
+    rules:
+      - alert: GitHubSlowResponse
+        expr: probe_duration_seconds{job="github-http"} > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: github
+        annotations:
+          summary: "GitHub endpoint responding slowly"
+          description: "GitHub endpoint {{ $labels.instance }} response time is above 2 seconds for more than 5 minutes.\n  VALUE = {{ $value }}s\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubVerySlow
+        expr: probe_duration_seconds{job="github-http"} > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: github
+        annotations:
+          summary: "GitHub endpoint critically slow"
+          description: "GitHub endpoint {{ $labels.instance }} response time is above 5 seconds.\n  VALUE = {{ $value }}s\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubHighDNSLatency
+        expr: probe_dns_lookup_time_seconds{job="github-http"} > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: github
+        annotations:
+          summary: "High DNS resolution time for GitHub"
+          description: "DNS resolution for {{ $labels.instance }} is taking more than 1 second.\n  VALUE = {{ $value }}s\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubSSLHandshakeSlow
+        expr: probe_http_ssl_duration_seconds{job="github-http"} > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: github
+        annotations:
+          summary: "Slow SSL handshake for GitHub"
+          description: "SSL/TLS handshake for {{ $labels.instance }} is taking more than 1 second.\n  VALUE = {{ $value }}s\n  LABELS: {{ $labels }}"
+
+  - name: github_ssl
+    interval: 6h
+    rules:
+      - alert: GitHubSSLCertExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry{job="github-ssl"} - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          service: github
+        annotations:
+          summary: "GitHub SSL certificate expiring soon"
+          description: "SSL certificate for {{ $labels.instance }} will expire in less than 30 days.\n  Days remaining = {{ $value }}\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubSSLCertExpiryCritical
+        expr: (probe_ssl_earliest_cert_expiry{job="github-ssl"} - time()) / 86400 < 7
+        for: 1h
+        labels:
+          severity: critical
+          service: github
+        annotations:
+          summary: "GitHub SSL certificate expiring very soon"
+          description: "SSL certificate for {{ $labels.instance }} will expire in less than 7 days!\n  Days remaining = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - name: github_http_errors
+    interval: 30s
+    rules:
+      - alert: GitHubHTTPError
+        expr: probe_http_status_code{job="github-http"} >= 400 and probe_http_status_code{job="github-http"} < 600
+        for: 3m
+        labels:
+          severity: warning
+          service: github
+        annotations:
+          summary: "GitHub returning HTTP error codes"
+          description: "GitHub endpoint {{ $labels.instance }} is returning HTTP error code {{ $value }}.\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubHTTP5xx
+        expr: probe_http_status_code{job="github-http"} >= 500
+        for: 2m
+        labels:
+          severity: critical
+          service: github
+        annotations:
+          summary: "GitHub returning 5xx server errors"
+          description: "GitHub endpoint {{ $labels.instance }} is returning HTTP 5xx server error: {{ $value }}.\n  LABELS: {{ $labels }}"
+
+  - name: github_sla
+    interval: 1m
+    rules:
+      - alert: GitHubSLABreach
+        expr: |
+          (
+            sum(rate(probe_success{job="github-http"}[1h]))
+            /
+            count(probe_success{job="github-http"})
+          ) < 0.99
+        for: 10m
+        labels:
+          severity: critical
+          service: github
+        annotations:
+          summary: "GitHub SLA breach detected"
+          description: "GitHub overall availability has dropped below 99% SLA threshold over the last hour.\n  Current availability = {{ $value | humanizePercentage }}\n  LABELS: {{ $labels }}"
+
+      - alert: GitHubMultipleEndpointsDown
+        expr: count(probe_success{job="github-http"} == 0) >= 2
+        for: 1m
+        labels:
+          severity: critical
+          service: github
+        annotations:
+          summary: "Multiple GitHub endpoints are down"
+          description: "{{ $value }} GitHub endpoints are currently unreachable. Possible widespread outage.\n  LABELS: {{ $labels }}"
