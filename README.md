@@ -67,6 +67,53 @@ This monitoring stack provides comprehensive observability for AWS infrastructur
 
 ---
 
+## 🌟 Real-World Use Case: GitHub Services Monitoring
+
+**NEW!** This project now includes a complete real-world monitoring implementation for GitHub services, demonstrating practical observability patterns you can apply to any public API or service.
+
+### What's Included
+
+- **Live Dashboard**: Monitor GitHub.com, GitHub API, and GitHub Status in real-time
+- **10+ Panels**: Availability, response times, SSL certificates, HTTP status codes, DNS latency
+- **12 Alert Rules**: Production-ready alerts for downtime, performance degradation, and SSL expiry
+- **Docker Compose Setup**: Test the entire stack locally in under 5 minutes
+- **Complete Documentation**: Step-by-step guide with troubleshooting and customization
+
+### Quick Start - Try It Now!
+
+```bash
+# Start the monitoring stack
+docker-compose up -d
+
+# Access Grafana dashboard
+open http://localhost:3000
+# Login: admin / admin
+
+# View GitHub monitoring dashboard
+# Navigate to Dashboards → GitHub Services Monitoring
+```
+
+**📖 [View Complete GitHub Monitoring Guide →](./GITHUB_MONITORING_GUIDE.md)**
+
+### Why This Example?
+
+This real-world implementation demonstrates:
+- ✅ Blackbox monitoring (external perspective, no code changes needed)
+- ✅ Multi-endpoint tracking (website, API, status pages)
+- ✅ SLA monitoring (99% uptime threshold)
+- ✅ Performance metrics (response time, DNS, SSL)
+- ✅ Production-ready alerting (critical vs warning alerts)
+- ✅ Dashboard design best practices
+
+**Apply this pattern to monitor:**
+- Your own APIs and microservices
+- Third-party dependencies (Stripe, Twilio, SendGrid)
+- Cloud provider status pages
+- CDN endpoints and edge locations
+- Competitor services for benchmarking
+
+---
+
 ## 🏗️ Architecture Overview
 
 The monitoring stack consists of several integrated components deployed across AWS services.

@@ -55,15 +55,24 @@ scrape_configs:
           service: 'cloudwatch'
     scrape_interval: 5m  # Respect CloudWatch API limits
 
-  # Blackbox Exporter for endpoint monitoring
-  - job_name: 'blackbox-http'
+  # Blackbox Exporter for endpoint monitoring - GitHub Monitoring
+  - job_name: 'github-http'
     metrics_path: /probe
     params:
       module: [http_2xx]
     static_configs:
       - targets:
-          - https://example.com
-          - https://api.example.com/health
+          - https://github.com
+          - https://api.github.com
+          - https://github.com/status
+        labels:
+          service: 'github-web'
+      - targets:
+          - https://api.github.com/rate_limit
+          - https://api.github.com/users/github
+          - https://api.github.com/repos/torvalds/linux
+        labels:
+          service: 'github-api'
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
@@ -71,6 +80,46 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: blackbox-exporter:9115
+    scrape_interval: 30s
+
+  # GitHub API - Direct Metrics (if exposing custom metrics)
+  - job_name: 'github-api-metrics'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://www.githubstatus.com/api/v2/status.json
+        labels:
+          service: 'github-status-api'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+    scrape_interval: 60s
+
+  # SSL Certificate Monitoring for GitHub
+  - job_name: 'github-ssl'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://github.com:443
+          - https://api.github.com:443
+        labels:
+          check_type: 'ssl_expiry'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+    scrape_interval: 6h
 
   # Application metrics (example)
   - job_name: 'application'
