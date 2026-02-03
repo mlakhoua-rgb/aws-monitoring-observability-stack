@@ -1,170 +1,104 @@
-# Prometheus Configuration for AWS Monitoring Stack
-# Author: Mohamed Ben Lakhoua (AI-Augmented with Manus AI)
-# License: MIT
+# Prometheus Configuration for AWS Infrastructure Monitoring
+# Production-ready setup with service discovery and alerting
 
 global:
-  scrape_interval: 30s
-  evaluation_interval: 30s
+  scrape_interval: 15s
+  evaluation_interval: 15s
   external_labels:
-    cluster: 'aws-monitoring'
-    environment: 'production'
+    cluster: 'aws-production'
+    environment: 'prod'
 
-# AlertManager configuration
+rule_files:
+  - "alert_rules/*.yml"
+
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-            - 'alertmanager:9093'
+          - alertmanager:9093
 
-# Load alert rules
-rule_files:
-  - '/etc/prometheus/alerts/*.yml'
-
-# Scrape configurations
 scrape_configs:
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-        labels:
-          service: 'prometheus'
 
-  # Node Exporter for system metrics
+  # Node Exporter for EC2 instances
   - job_name: 'node-exporter'
     ec2_sd_configs:
       - region: us-east-1
         port: 9100
         filters:
           - name: tag:Monitoring
-            values: ['enabled']
+            values: [enabled]
+          - name: instance-state-name
+            values: [running]
     relabel_configs:
-      - source_labels: [__meta_ec2_tag_Name]
-        target_label: instance_name
+      # Use instance ID as the instance label
       - source_labels: [__meta_ec2_instance_id]
-        target_label: instance_id
+        target_label: instance
+      # Add environment tag
+      - source_labels: [__meta_ec2_tag_Environment]
+        target_label: environment
+      # Add service tag
+      - source_labels: [__meta_ec2_tag_Service]
+        target_label: service
+      # Add availability zone
       - source_labels: [__meta_ec2_availability_zone]
         target_label: availability_zone
-      - source_labels: [__meta_ec2_instance_type]
-        target_label: instance_type
 
-  # CloudWatch Exporter for AWS native metrics
-  - job_name: 'cloudwatch-exporter'
+  # AWS CloudWatch Exporter
+  - job_name: 'cloudwatch'
     static_configs:
       - targets: ['cloudwatch-exporter:9106']
-        labels:
-          service: 'cloudwatch'
-    scrape_interval: 5m  # Respect CloudWatch API limits
 
-  # Blackbox Exporter for endpoint monitoring - GitHub Monitoring
-  - job_name: 'github-http'
-    metrics_path: /probe
-    params:
-      module: [http_2xx]
-    static_configs:
-      - targets:
-          - https://github.com
-          - https://api.github.com
-          - https://github.com/status
-        labels:
-          service: 'github-web'
-      - targets:
-          - https://api.github.com/rate_limit
-          - https://api.github.com/users/github
-          - https://api.github.com/repos/torvalds/linux
-        labels:
-          service: 'github-api'
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter:9115
-    scrape_interval: 30s
-
-  # GitHub API - Direct Metrics (if exposing custom metrics)
-  - job_name: 'github-api-metrics'
-    metrics_path: /probe
-    params:
-      module: [http_2xx]
-    static_configs:
-      - targets:
-          - https://www.githubstatus.com/api/v2/status.json
-        labels:
-          service: 'github-status-api'
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter:9115
-    scrape_interval: 60s
-
-  # SSL Certificate Monitoring for GitHub
-  - job_name: 'github-ssl'
-    metrics_path: /probe
-    params:
-      module: [http_2xx]
-    static_configs:
-      - targets:
-          - https://github.com:443
-          - https://api.github.com:443
-        labels:
-          check_type: 'ssl_expiry'
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter:9115
-    scrape_interval: 6h
-
-  # Application metrics (example)
-  - job_name: 'application'
+  # Application metrics (if using custom exporters)
+  - job_name: 'application-metrics'
     ec2_sd_configs:
       - region: us-east-1
         port: 8080
         filters:
-          - name: tag:Application
-            values: ['web-app']
+          - name: tag:MetricsPort
+            values: ['8080']
+          - name: instance-state-name
+            values: [running]
     metrics_path: /metrics
     relabel_configs:
-      - source_labels: [__meta_ec2_tag_Name]
-        target_label: application
       - source_labels: [__meta_ec2_instance_id]
-        target_label: instance_id
+        target_label: instance
+      - source_labels: [__meta_ec2_tag_Service]
+        target_label: service
 
-  # RDS Enhanced Monitoring (via CloudWatch)
-  - job_name: 'rds-monitoring'
-    static_configs:
-      - targets: ['cloudwatch-exporter:9106']
-        labels:
-          service: 'rds'
-    scrape_interval: 1m
-    metrics_path: /metrics
-    params:
-      namespace: ['AWS/RDS']
+  # ECS Service Discovery (if using ECS)
+  - job_name: 'ecs-tasks'
+    ecs_sd_configs:
+      - region: us-east-1
+        cluster: production
+        port: 9090
+    relabel_configs:
+      - source_labels: [__meta_ecs_task_definition_family]
+        target_label: job
+      - source_labels: [__meta_ecs_service_name]
+        target_label: service
+      - source_labels: [__meta_ecs_cluster_name]
+        target_label: cluster
 
-  # ELB/ALB Monitoring
-  - job_name: 'alb-monitoring'
+  # Load Balancer metrics
+  - job_name: 'aws-alb'
     static_configs:
-      - targets: ['cloudwatch-exporter:9106']
-        labels:
-          service: 'alb'
-    scrape_interval: 1m
-    metrics_path: /metrics
+      - targets: ['localhost:9106']
+    metrics_path: /probe
     params:
-      namespace: ['AWS/ApplicationELB']
+      module: [aws_alb]
+      target: [arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/my-load-balancer/1234567890123456]
 
-  # Lambda Monitoring
-  - job_name: 'lambda-monitoring'
-    static_configs:
-      - targets: ['cloudwatch-exporter:9106']
-        labels:
-          service: 'lambda'
-    scrape_interval: 1m
-    metrics_path: /metrics
-    params:
-      namespace: ['AWS/Lambda']
+# Remote write to long-term storage (optional)
+remote_write:
+  - url: "https://prometheus-remote-write.example.com/receive"
+    basic_auth:
+      username: "prometheus"
+      password: "your-password"
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 200
+      capacity: 2500

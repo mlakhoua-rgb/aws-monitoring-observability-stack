@@ -1,56 +1,48 @@
-# Docker Compose for Local GitHub Monitoring Stack Testing
-# Author: Mohamed Ben Lakhoua (AI-Augmented with Claude Code)
-# License: MIT
-#
-# Quick Start:
-#   docker-compose up -d
-#   Access Grafana: http://localhost:3000 (admin/admin)
-#   Access Prometheus: http://localhost:9090
-#   Access AlertManager: http://localhost:9093
-
 version: '3.8'
 
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     container_name: prometheus
-    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules:/etc/prometheus/alert_rules:ro
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
-      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-admin-api'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana
     ports:
-      - "9090:9090"
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alerts:/etc/prometheus/alerts:ro
-      - prometheus_data:/prometheus
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
     networks:
       - monitoring
     depends_on:
-      - blackbox-exporter
-      - alertmanager
-
-  blackbox-exporter:
-    image: prom/blackbox-exporter:latest
-    container_name: blackbox-exporter
-    restart: unless-stopped
-    ports:
-      - "9115:9115"
-    volumes:
-      - ./prometheus/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
-    command:
-      - '--config.file=/etc/blackbox_exporter/config.yml'
-    networks:
-      - monitoring
+      - prometheus
 
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.25.0
     container_name: alertmanager
-    restart: unless-stopped
     ports:
       - "9093:9093"
     volumes:
@@ -59,48 +51,73 @@ services:
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
-    networks:
-      - monitoring
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
+      - '--web.external-url=http://localhost:9093'
     restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_INSTALL_PLUGINS=
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - monitoring
-    depends_on:
-      - prometheus
 
-  # Node Exporter for monitoring the Docker host (optional)
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.6.0
     container_name: node-exporter
-    restart: unless-stopped
     ports:
       - "9100:9100"
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/rootfs'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
     networks:
       - monitoring
+
+  cloudwatch-exporter:
+    image: prom/cloudwatch-exporter:cloudwatch_exporter-0.15.5
+    container_name: cloudwatch-exporter
+    ports:
+      - "9106:9106"
+    environment:
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./cloudwatch-exporter/config.yml:/config/config.yml:ro
+    command:
+      - '-config.file=/config/config.yml'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Optional: Loki for log aggregation
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Optional: Promtail for log collection
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - loki
 
 networks:
   monitoring:
@@ -108,8 +125,6 @@ networks:
 
 volumes:
   prometheus_data:
-    driver: local
   grafana_data:
-    driver: local
   alertmanager_data:
-    driver: local
+  loki_data:
