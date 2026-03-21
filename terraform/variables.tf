@@ -56,3 +56,11 @@ variable "alert_email" {
   type        = string
   default     = ""
 }
+
+variable "trusted_cidr_blocks" {
+  description = "List of trusted CIDR blocks allowed to access Prometheus (port 9090) and Grafana (port 3000). Should be your VPC CIDR, VPN CIDR, or bastion host IP. Never use 0.0.0.0/0 in production."
+  type        = list(string)
+  # Example: ["10.0.0.0/8", "172.16.0.0/12"] for private networks
+  # Override in terraform.tfvars or via -var flag
+  default     = ["10.0.0.0/8"]
+}

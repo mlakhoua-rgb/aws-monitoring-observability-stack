@@ -1,0 +1,80 @@
+name: CI — Validate, Lint, Security
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  terraform-validate:
+    name: Terraform Validate & Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+        working-directory: terraform/
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: terraform/
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: terraform/
+
+  terraform-security:
+    name: Terraform Security Scan (tfsec)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform/
+          soft_fail: true
+
+  prometheus-lint:
+    name: Validate Prometheus Config
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate prometheus.yml
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/prometheus:/etc/prometheus \
+            prom/prometheus:latest \
+            promtool check config /etc/prometheus/prometheus.yml
+
+      - name: Validate alert rules
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/prometheus:/etc/prometheus \
+            prom/prometheus:latest \
+            promtool check rules /etc/prometheus/alert_rules/infrastructure.yml
+
+  docker-compose-lint:
+    name: Validate docker-compose
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet

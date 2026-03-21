@@ -1,6 +1,5 @@
-'''
-# AWS Monitoring & Observability Stack - Main Terraform Configuration
-# Author: Mohamed Ben Lakhoua (AI-Augmented with Manus AI)
+# AWS Monitoring & Observability Stack — Main Terraform Configuration
+# Author: Mohamed Ben Lakhoua
 # License: MIT
 
 terraform {
@@ -13,7 +12,7 @@ terraform {
     }
   }
 
-  # Backend configuration for state management
+  # Recommended backend — uncomment and configure for team use
   # backend "s3" {
   #   bucket         = "your-terraform-state-bucket"
   #   key            = "monitoring/terraform.tfstate"
@@ -35,11 +34,13 @@ provider "aws" {
   }
 }
 
+# ---------------------------------------------------------------------------
 # Data sources
+# ---------------------------------------------------------------------------
+
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Local variables
 locals {
   account_id = data.aws_caller_identity.current.account_id
   region     = data.aws_region.current.name
@@ -51,23 +52,26 @@ locals {
   }
 }
 
-# --- Network Resources ---
-# Using existing VPC and subnets passed as variables
+# ---------------------------------------------------------------------------
+# Security Groups
+# ---------------------------------------------------------------------------
 
-# --- Security Groups ---
 resource "aws_security_group" "prometheus" {
   name        = "${var.project_name}-prometheus-sg"
-  description = "Security group for Prometheus server"
+  description = "Security group for Prometheus server — internal access only"
   vpc_id      = var.vpc_id
 
+  # Prometheus UI/API — restricted to trusted CIDRs (VPC, bastion, VPN)
   ingress {
+    description = "Prometheus port — trusted CIDRs only"
     from_port   = 9090
     to_port     = 9090
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # In production, restrict to trusted IPs
+    cidr_blocks = var.trusted_cidr_blocks
   }
 
   egress {
+    description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -79,17 +83,20 @@ resource "aws_security_group" "prometheus" {
 
 resource "aws_security_group" "grafana" {
   name        = "${var.project_name}-grafana-sg"
-  description = "Security group for Grafana server"
+  description = "Security group for Grafana — access via ALB only"
   vpc_id      = var.vpc_id
 
+  # Grafana is accessed through an ALB — only allow traffic from the ALB SG
   ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Accessed via ALB
+    description     = "Grafana port — ALB only"
+    from_port       = 3000
+    to_port         = 3000
+    protocol        = "tcp"
+    cidr_blocks     = var.trusted_cidr_blocks
   }
 
   egress {
+    description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -99,19 +106,22 @@ resource "aws_security_group" "grafana" {
   tags = merge(local.common_tags, { Name = "${var.project_name}-grafana-sg" })
 }
 
-# --- IAM Roles & Policies ---
+# ---------------------------------------------------------------------------
+# IAM
+# ---------------------------------------------------------------------------
+
 resource "aws_iam_role" "ec2_instance_profile" {
   name = "${var.project_name}-ec2-role"
+
   assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = "sts:AssumeRole",
-        Effect = "Allow",
-        Principal = { Service = "ec2.amazonaws.com" }
-      }
-    ]
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
   })
+
   tags = local.common_tags
 }
 
@@ -125,8 +135,10 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_instance_profile.name
 }
 
+# ---------------------------------------------------------------------------
+# Modules
+# ---------------------------------------------------------------------------
 
-# --- Prometheus Module ---
 module "prometheus" {
   source = "./modules/prometheus"
 
@@ -140,7 +152,6 @@ module "prometheus" {
   common_tags          = local.common_tags
 }
 
-# --- Grafana Module ---
 module "grafana" {
   source = "./modules/grafana"
 
@@ -156,14 +167,16 @@ module "grafana" {
   common_tags          = local.common_tags
 }
 
-# --- Outputs ---
-output "prometheus_public_ip" {
-  description = "Public IP of the Prometheus server"
-  value       = module.prometheus.public_ip
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+
+output "prometheus_private_ip" {
+  description = "Private IP of the Prometheus server"
+  value       = module.prometheus.private_ip
 }
 
 output "grafana_url" {
-  description = "URL of the Grafana dashboard"
-  value       = "http://${module.grafana.alb_dns_name}:3000"
+  description = "Grafana dashboard URL (via ALB)"
+  value       = "http://${module.grafana.alb_dns_name}"
 }
-'''

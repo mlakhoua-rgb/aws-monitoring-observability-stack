@@ -90,15 +90,16 @@ scrape_configs:
     metrics_path: /probe
     params:
       module: [aws_alb]
-      target: [arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/my-load-balancer/1234567890123456]
+      # Replace with your ALB ARN
+      target: ['arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:loadbalancer/app/YOUR-ALB-NAME/YOUR-ALB-ID']
 
 # Remote write to long-term storage (optional)
-remote_write:
-  - url: "https://prometheus-remote-write.example.com/receive"
-    basic_auth:
-      username: "prometheus"
-      password: "your-password"
-    queue_config:
-      max_samples_per_send: 1000
-      max_shards: 200
-      capacity: 2500
+# Uncomment and configure when using a remote backend (e.g., Thanos, Cortex, Amazon Managed Prometheus)
+# remote_write:
+#   - url: "https://your-remote-write-endpoint/receive"
+#     sigv4:
+#       region: us-east-1
+#     queue_config:
+#       max_samples_per_send: 1000
+#       max_shards: 200
+#       capacity: 2500

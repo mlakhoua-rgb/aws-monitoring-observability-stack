@@ -1,0 +1,21 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+terraform.tfplan
+override.tf
+override.tf.json
+
+# Secrets
+*.pem
+*.key
+*.env
+.env*
+grafana/grafana.ini
+
+# OS
+.DS_Store
+Thumbs.db
