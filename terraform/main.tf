@@ -1,5 +1,4 @@
 # AWS Monitoring & Observability Stack — Main Terraform Configuration
-# Author: Mohamed Ben Lakhoua
 # License: MIT
 
 terraform {
@@ -53,21 +52,20 @@ locals {
 }
 
 # ---------------------------------------------------------------------------
-# Security Groups
+# Security groups — traffic flows ALB → Grafana → Prometheus
 # ---------------------------------------------------------------------------
 
-resource "aws_security_group" "prometheus" {
-  name        = "${var.project_name}-prometheus-sg"
-  description = "Security group for Prometheus server — internal access only"
+resource "aws_security_group" "alb" {
+  name        = "${var.project_name}-alb-sg"
+  description = "Internet-facing ALB for Grafana"
   vpc_id      = var.vpc_id
 
-  # Prometheus UI/API — restricted to trusted CIDRs (VPC, bastion, VPN)
   ingress {
-    description = "Prometheus port — trusted CIDRs only"
-    from_port   = 9090
-    to_port     = 9090
+    description = "HTTP to Grafana (Grafana login still applies)"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = var.trusted_cidr_blocks
+    cidr_blocks = var.alb_allowed_cidr_blocks
   }
 
   egress {
@@ -78,21 +76,20 @@ resource "aws_security_group" "prometheus" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(local.common_tags, { Name = "${var.project_name}-prometheus-sg" })
+  tags = merge(local.common_tags, { Name = "${var.project_name}-alb-sg" })
 }
 
 resource "aws_security_group" "grafana" {
   name        = "${var.project_name}-grafana-sg"
-  description = "Security group for Grafana — access via ALB only"
+  description = "Grafana instances — reachable only through the ALB"
   vpc_id      = var.vpc_id
 
-  # Grafana is accessed through an ALB — only allow traffic from the ALB SG
   ingress {
-    description     = "Grafana port — ALB only"
+    description     = "Grafana port from the ALB only"
     from_port       = 3000
     to_port         = 3000
     protocol        = "tcp"
-    cidr_blocks     = var.trusted_cidr_blocks
+    security_groups = [aws_security_group.alb.id]
   }
 
   egress {
@@ -104,6 +101,40 @@ resource "aws_security_group" "grafana" {
   }
 
   tags = merge(local.common_tags, { Name = "${var.project_name}-grafana-sg" })
+}
+
+resource "aws_security_group" "prometheus" {
+  name        = "${var.project_name}-prometheus-sg"
+  description = "Prometheus server — internal access only"
+  vpc_id      = var.vpc_id
+
+  # Operator access (VPN / bastion / VPC CIDR)
+  ingress {
+    description = "Prometheus UI/API from trusted CIDRs"
+    from_port   = 9090
+    to_port     = 9090
+    protocol    = "tcp"
+    cidr_blocks = var.trusted_cidr_blocks
+  }
+
+  # Grafana queries Prometheus as its datasource
+  ingress {
+    description     = "Prometheus API from Grafana"
+    from_port       = 9090
+    to_port         = 9090
+    protocol        = "tcp"
+    security_groups = [aws_security_group.grafana.id]
+  }
+
+  egress {
+    description = "Allow all outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.common_tags, { Name = "${var.project_name}-prometheus-sg" })
 }
 
 # ---------------------------------------------------------------------------
@@ -130,6 +161,25 @@ resource "aws_iam_role_policy_attachment" "ec2_ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Prometheus EC2 service discovery needs read-only instance metadata.
+resource "aws_iam_role_policy" "prometheus_sd" {
+  name = "${var.project_name}-prometheus-sd"
+  role = aws_iam_role.ec2_instance_profile.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "PrometheusEC2ServiceDiscovery"
+      Effect = "Allow"
+      Action = [
+        "ec2:DescribeInstances",
+        "ec2:DescribeAvailabilityZones"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.project_name}-ec2-profile"
   role = aws_iam_role.ec2_instance_profile.name
@@ -144,6 +194,7 @@ module "prometheus" {
 
   project_name         = var.project_name
   environment          = var.environment
+  aws_region           = var.aws_region
   vpc_id               = var.vpc_id
   subnet_id            = var.private_subnet_ids[0]
   instance_type        = var.prometheus_instance_type
@@ -155,16 +206,18 @@ module "prometheus" {
 module "grafana" {
   source = "./modules/grafana"
 
-  project_name         = var.project_name
-  environment          = var.environment
-  vpc_id               = var.vpc_id
-  subnet_ids           = var.private_subnet_ids
-  instance_type        = var.grafana_instance_type
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
-  security_group_ids   = [aws_security_group.grafana.id]
-  admin_password       = var.grafana_admin_password
-  prometheus_endpoint  = "http://${module.prometheus.private_ip}:9090"
-  common_tags          = local.common_tags
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = var.vpc_id
+  subnet_ids            = var.private_subnet_ids
+  alb_subnet_ids        = var.public_subnet_ids
+  alb_security_group_id = aws_security_group.alb.id
+  instance_type         = var.grafana_instance_type
+  iam_instance_profile  = aws_iam_instance_profile.ec2_profile.name
+  security_group_ids    = [aws_security_group.grafana.id]
+  admin_password        = var.grafana_admin_password
+  prometheus_endpoint   = "http://${module.prometheus.private_ip}:9090"
+  common_tags           = local.common_tags
 }
 
 # ---------------------------------------------------------------------------

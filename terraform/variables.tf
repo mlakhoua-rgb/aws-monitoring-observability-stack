@@ -51,10 +51,10 @@ variable "grafana_admin_password" {
   sensitive   = true
 }
 
-variable "alert_email" {
-  description = "Email address for AlertManager notifications"
-  type        = string
-  default     = ""
+variable "alb_allowed_cidr_blocks" {
+  description = "CIDR blocks allowed to reach the Grafana ALB on port 80. Grafana's own login still applies; restrict to office/VPN ranges where possible."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }
 
 variable "trusted_cidr_blocks" {
@@ -62,5 +62,5 @@ variable "trusted_cidr_blocks" {
   type        = list(string)
   # Example: ["10.0.0.0/8", "172.16.0.0/12"] for private networks
   # Override in terraform.tfvars or via -var flag
-  default     = ["10.0.0.0/8"]
+  default = ["10.0.0.0/8"]
 }
