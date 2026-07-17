@@ -7,6 +7,9 @@
 #    600s range below account for it.
 #  * S3 request metrics (4xxErrors) only exist for buckets with request
 #    metrics enabled in S3 → Metrics configuration.
+#  * The region below is what the exporter queries — edit it here. An
+#    AWS_REGION environment variable does NOT override this file; only
+#    credentials come from the environment.
 region: us-east-1
 period_seconds: 300
 range_seconds: 600

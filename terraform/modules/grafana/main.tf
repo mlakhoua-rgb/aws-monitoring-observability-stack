@@ -81,6 +81,18 @@ resource "aws_autoscaling_group" "grafana" {
     version = "$Latest"
   }
 
+  # Roll instances when the launch template changes — without this, an
+  # existing instance keeps the old Prometheus datasource URL baked into its
+  # user_data after a Prometheus replacement ($Latest only affects future
+  # launches). 100% min healthy = launch the replacement before terminating
+  # (max_size leaves headroom for it).
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 100
+    }
+  }
+
   tag {
     key                 = "Name"
     value               = "${var.project_name}-grafana"

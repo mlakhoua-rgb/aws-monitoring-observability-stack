@@ -40,6 +40,19 @@ scrape_configs:
     static_configs:
       - targets: ['blackbox-exporter:9115']
 
+  # --- Optional: AWS CloudWatch metrics (aws compose profile) ---
+  # file_sd keeps the plain lab quiet: with no targets file the job has zero
+  # targets, so there is no dead-target noise and no false InstanceDown alert.
+  # To enable, run:
+  #   cp prometheus/targets/cloudwatch.yml.example prometheus/targets/cloudwatch.yml
+  #   docker compose --profile aws up -d
+  # Prometheus picks the file up live — no restart needed.
+  - job_name: 'cloudwatch'
+    scrape_interval: 5m # CloudWatch metrics update slowly; respect API cost
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/cloudwatch*.yml'
+
   # --- GitHub monitoring demo (blackbox probes) ---
   # 2-minute interval keeps unauthenticated api.github.com probes well under
   # GitHub's 60 requests/hour/IP rate limit. Alert `for:` durations assume

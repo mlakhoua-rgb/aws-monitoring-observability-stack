@@ -1,0 +1,5 @@
+# Copy to cloudwatch.yml (same directory) to point Prometheus at the
+# CloudWatch exporter started by `docker compose --profile aws up -d`.
+# Prometheus watches this directory and applies the change without a restart.
+- targets:
+    - 'cloudwatch-exporter:9106'

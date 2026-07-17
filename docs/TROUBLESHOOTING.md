@@ -18,6 +18,16 @@ docker compose logs <service> --tail 50
 - **grafana** restarting: usually a bad provisioning file under `grafana/provisioning/`.
 - **cloudwatch-exporter** exits immediately: it only runs under the `aws` profile and needs `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in the environment.
 
+### CloudWatch metrics don't appear with `--profile aws`
+
+Three separate switches must all be on:
+
+1. **The scrape target:** copy `prometheus/targets/cloudwatch.yml.example` to `prometheus/targets/cloudwatch.yml` — the `cloudwatch` job is file_sd-based and empty by default (so the plain lab shows no dead target). Prometheus picks the file up without a restart.
+2. **The region:** the exporter queries the `region` set in `cloudwatch-exporter/config.yml`; an `AWS_REGION` environment variable does **not** override it. Edit the file for any region other than us-east-1.
+3. **Credentials:** `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` must be in the compose environment; check `docker compose logs cloudwatch-exporter` for auth errors.
+
+Also remember CloudWatch metrics lag by several minutes and the scrape interval is 5m — first datapoints take a while.
+
 ### GitHub dashboard shows "No data"
 
 Work down the pipeline:

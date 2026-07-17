@@ -20,6 +20,7 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert_rules:/etc/prometheus/alert_rules:ro
       - ./prometheus/alerts:/etc/prometheus/alerts:ro
+      - ./prometheus/targets:/etc/prometheus/targets:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -99,6 +100,10 @@ services:
       - monitoring
 
   # --- Optional: AWS CloudWatch metrics (profile: aws) ---
+  # Also copy prometheus/targets/cloudwatch.yml.example → cloudwatch.yml so
+  # Prometheus scrapes the exporter. The region the exporter queries is set
+  # in cloudwatch-exporter/config.yml (an AWS_REGION env var would NOT
+  # override it — only the credentials come from the environment).
   cloudwatch-exporter:
     image: prom/cloudwatch-exporter:cloudwatch_exporter-0.15.5
     container_name: cloudwatch-exporter
@@ -106,7 +111,6 @@ services:
     ports:
       - "9106:9106"
     environment:
-      - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     volumes:

@@ -35,7 +35,13 @@ Open **Dashboards → GitHub Services Monitoring** in Grafana: the panels are li
 Optional profiles:
 
 ```bash
-docker compose --profile aws up -d    # + CloudWatch exporter (needs AWS credentials)
+# + CloudWatch exporter (needs AWS credentials in the environment; set the
+# query region in cloudwatch-exporter/config.yml). The cp enables the
+# Prometheus scrape job — without a targets file the job is empty by design,
+# so the plain lab never shows a dead target.
+cp prometheus/targets/cloudwatch.yml.example prometheus/targets/cloudwatch.yml
+docker compose --profile aws up -d
+
 docker compose --profile logs up -d   # + Loki & Promtail log aggregation
 ```
 
