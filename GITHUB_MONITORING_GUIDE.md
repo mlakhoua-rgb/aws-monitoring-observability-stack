@@ -13,12 +13,12 @@ This guide demonstrates a real-world monitoring implementation for GitHub servic
 ### Endpoints Monitored
 1. **GitHub Website** - `https://github.com`
 2. **GitHub API** - `https://api.github.com`
-3. **GitHub Status Page** - `https://github.com/status`
-4. **GitHub API Endpoints:**
-   - Rate Limit API: `https://api.github.com/rate_limit`
-   - User API: `https://api.github.com/users/github`
-   - Repository API: `https://api.github.com/repos/torvalds/linux`
-5. **GitHub Status API** - `https://www.githubstatus.com/api/v2/status.json`
+3. **GitHub Status API** - `https://www.githubstatus.com/api/v2/status.json`
+
+The probe interval is deliberately 2 minutes: unauthenticated requests to
+`api.github.com` are rate-limited to 60/hour/IP, and a monitoring tool that
+gets itself rate-limited produces false DOWN alerts. Add more API endpoints
+only if you also raise the interval or authenticate the probes.
 
 ### Metrics Collected
 - **Availability**: Uptime percentage, probe success/failure
@@ -149,13 +149,16 @@ Edit `prometheus/prometheus.yml`:
 
 ```yaml
 - job_name: 'github-http'
+  metrics_path: /probe
+  scrape_interval: 2m
+  params:
+    module: [http_2xx]
   static_configs:
     - targets:
         - https://github.com
         - https://api.github.com
+        - https://www.githubstatus.com/api/v2/status.json
         - https://your-custom-endpoint.com  # Add here
-      labels:
-        service: 'github-web'
 ```
 
 ### Adjust Scrape Intervals
@@ -163,7 +166,7 @@ Edit `prometheus/prometheus.yml`:
 ```yaml
 scrape_configs:
   - job_name: 'github-http'
-    scrape_interval: 15s  # Change from 30s to 15s
+    scrape_interval: 1m  # fine for your own endpoints; mind rate limits on shared APIs
 ```
 
 ### Modify Alert Thresholds
@@ -191,14 +194,9 @@ cd terraform
 # Initialize Terraform
 terraform init
 
-# Create terraform.tfvars
-cat > terraform.tfvars <<EOF
-vpc_id              = "vpc-xxxxxxxxx"
-private_subnet_ids  = ["subnet-xxx", "subnet-yyy"]
-public_subnet_ids   = ["subnet-aaa", "subnet-bbb"]
-grafana_admin_password = "your-secure-password"
-alert_email         = "alerts@yourcompany.com"
-EOF
+# Create terraform.tfvars from the example
+cp terraform.tfvars.example terraform.tfvars
+# then edit vpc_id, subnet IDs, and grafana_admin_password
 
 # Review plan
 terraform plan
@@ -230,7 +228,7 @@ After deployment:
 | `probe_duration_seconds` | Total probe duration | Gauge |
 | `probe_http_duration_seconds` | HTTP request duration | Gauge |
 | `probe_dns_lookup_time_seconds` | DNS resolution time | Gauge |
-| `probe_http_ssl_duration_seconds` | SSL/TLS handshake duration | Gauge |
+| `probe_http_duration_seconds{phase="tls"}` | SSL/TLS handshake duration (per-phase breakdown) | Gauge |
 | `probe_http_status_code` | HTTP status code returned | Gauge |
 | `probe_ssl_earliest_cert_expiry` | SSL certificate expiry timestamp | Gauge |
 
@@ -243,9 +241,9 @@ avg_over_time(probe_success{job="github-http"}[24h]) * 100
 
 **Get 95th percentile response time:**
 ```promql
-histogram_quantile(0.95,
-  rate(probe_duration_seconds_bucket{job="github-http"}[5m])
-)
+# probe_duration_seconds is a gauge (no histogram buckets) —
+# use quantile_over_time, not histogram_quantile
+quantile_over_time(0.95, probe_duration_seconds{job="github-http"}[1h])
 ```
 
 **Count failed probes in last hour:**
@@ -265,11 +263,12 @@ count_over_time((probe_success{job="github-http"} == 0)[1h:])
 Test alert firing by temporarily blocking an endpoint:
 
 ```bash
-# Add GitHub.com to /etc/hosts to simulate DNS failure (requires sudo)
-sudo echo "127.0.0.1 github.com" >> /etc/hosts
+# Block github.com resolution on the host (sudo must own the redirection,
+# hence tee — `sudo echo >> file` would fail on a root-owned file):
+echo "127.0.0.1 github.com" | sudo tee -a /etc/hosts
 
-# Wait 2-3 minutes for alert to fire
-# Check AlertManager: http://localhost:9093
+# Wait for the next probe cycle (2m interval) plus the alert's 2m `for`
+# duration, then check AlertManager: http://localhost:9093
 
 # Remove the entry to restore
 sudo sed -i '/127.0.0.1 github.com/d' /etc/hosts

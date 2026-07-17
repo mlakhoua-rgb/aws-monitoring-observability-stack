@@ -21,7 +21,16 @@ We welcome pull requests! Please follow these steps:
 3. Make your changes and commit them with a clear, descriptive message.
 4. Ensure your code adheres to the existing style and includes tests where applicable.
 5. Push your branch to your fork (`git push origin feature/my-new-feature`).
-6. Open a pull request against the `main` branch of this repository.
+6. Open a pull request against the `master` branch of this repository.
+
+Before opening the PR, run the same validations CI runs:
+
+```bash
+docker compose --profile aws --profile logs config --quiet
+docker run --rm -v $(pwd)/prometheus:/cfg --entrypoint promtool prom/prometheus:v2.45.0 check config /cfg/prometheus.yml
+docker run --rm -v $(pwd)/prometheus:/cfg --entrypoint promtool prom/prometheus:v2.45.0 check rules /cfg/alert_rules/*.yml /cfg/alerts/*.yml
+terraform -chdir=terraform fmt -check -recursive && terraform -chdir=terraform validate
+```
 
 ## Styleguides
 
@@ -40,4 +49,4 @@ We welcome pull requests! Please follow these steps:
 - Example: `feat: add new dashboard for RDS monitoring`
 
 ## Code of Conduct
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [mo@metafive.one](mailto:mo@metafive.one).
+Be respectful and constructive. Please report unacceptable behavior to [mo@metafive.one](mailto:mo@metafive.one).
