@@ -49,4 +49,4 @@ terraform -chdir=terraform fmt -check -recursive && terraform -chdir=terraform v
 - Example: `feat: add new dashboard for RDS monitoring`
 
 ## Code of Conduct
-Be respectful and constructive. Please report unacceptable behavior to [mo@metafive.one](mailto:mo@metafive.one).
+Be respectful and constructive. Please report unacceptable behavior to [Mohamed@metafive.ai](mailto:Mohamed@metafive.ai).
