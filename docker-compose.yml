@@ -1,4 +1,14 @@
-version: '3.8'
+# AWS Monitoring & Observability Stack — local lab
+#
+# Core stack (starts by default):
+#   prometheus, grafana, alertmanager, node-exporter, blackbox-exporter
+#   → `docker compose up -d` gives a fully working GitHub-monitoring demo.
+#
+# Optional profiles:
+#   aws  → cloudwatch-exporter (needs AWS credentials in the environment)
+#          `docker compose --profile aws up -d`
+#   logs → loki + promtail log aggregation
+#          `docker compose --profile logs up -d`
 
 services:
   prometheus:
@@ -9,14 +19,14 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert_rules:/etc/prometheus/alert_rules:ro
+      - ./prometheus/alerts:/etc/prometheus/alerts:ro
+      - ./prometheus/targets:/etc/prometheus/targets:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
       - '--web.enable-lifecycle'
-      - '--web.enable-admin-api'
     restart: unless-stopped
     networks:
       - monitoring
@@ -27,9 +37,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      # Override with GRAFANA_ADMIN_PASSWORD in a .env file for anything
+      # beyond a local lab.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -74,27 +85,45 @@ services:
     networks:
       - monitoring
 
-  cloudwatch-exporter:
-    image: prom/cloudwatch-exporter:cloudwatch_exporter-0.15.5
-    container_name: cloudwatch-exporter
+  # Probes external endpoints (the GitHub monitoring demo runs through this).
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: blackbox-exporter
     ports:
-      - "9106:9106"
-    environment:
-      - AWS_REGION=us-east-1
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - "9115:9115"
     volumes:
-      - ./cloudwatch-exporter/config.yml:/config/config.yml:ro
+      - ./prometheus/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     command:
-      - '-config.file=/config/config.yml'
+      - '--config.file=/etc/blackbox_exporter/config.yml'
     restart: unless-stopped
     networks:
       - monitoring
 
-  # Optional: Loki for log aggregation
+  # --- Optional: AWS CloudWatch metrics (profile: aws) ---
+  # Also copy prometheus/targets/cloudwatch.yml.example → cloudwatch.yml so
+  # Prometheus scrapes the exporter. The region the exporter queries is set
+  # in cloudwatch-exporter/config.yml (an AWS_REGION env var would NOT
+  # override it — only the credentials come from the environment).
+  cloudwatch-exporter:
+    image: prom/cloudwatch-exporter:cloudwatch_exporter-0.15.5
+    container_name: cloudwatch-exporter
+    profiles: ["aws"]
+    ports:
+      - "9106:9106"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./cloudwatch-exporter/config.yml:/config/config.yml:ro
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # --- Optional: log aggregation (profile: logs) ---
   loki:
     image: grafana/loki:2.9.0
     container_name: loki
+    profiles: ["logs"]
     ports:
       - "3100:3100"
     volumes:
@@ -105,10 +134,10 @@ services:
     networks:
       - monitoring
 
-  # Optional: Promtail for log collection
   promtail:
     image: grafana/promtail:2.9.0
     container_name: promtail
+    profiles: ["logs"]
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/log:/var/log:ro

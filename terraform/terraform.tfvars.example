@@ -1,0 +1,24 @@
+# AWS Monitoring & Observability Stack - Example Configuration
+# Copy to terraform.tfvars and adjust for your account.
+
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "aws-monitoring-stack"
+
+# Existing network to deploy into
+vpc_id             = "vpc-xxxxxxxxxxxxxxxxx"
+private_subnet_ids = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-yyyyyyyyyyyyyyyyy"]
+public_subnet_ids  = ["subnet-zzzzzzzzzzzzzzzzz", "subnet-aaaaaaaaaaaaaaaaa"]
+
+# Grafana admin login (change it — also consider SSO beyond a demo)
+grafana_admin_password = "change-me-securely"
+
+# Who may reach what:
+#  - alb_allowed_cidr_blocks: who can open the Grafana ALB (port 80)
+#  - trusted_cidr_blocks:     who can reach Prometheus directly (port 9090)
+alb_allowed_cidr_blocks = ["0.0.0.0/0"] # restrict to office/VPN ranges if you can
+trusted_cidr_blocks     = ["10.0.0.0/8"]
+
+# Sizing
+prometheus_instance_type = "t3.medium"
+grafana_instance_type    = "t3.small"

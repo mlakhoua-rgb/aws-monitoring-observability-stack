@@ -618,7 +618,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "probe_http_ssl_duration_seconds{job=\"github-http\"} * 1000",
+          "expr": "probe_http_duration_seconds{job=\"github-http\", phase=\"tls\"} * 1000",
           "legendFormat": "{{instance}} - SSL Handshake",
           "refId": "A"
         }

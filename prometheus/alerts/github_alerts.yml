@@ -60,7 +60,9 @@ groups:
           description: "DNS resolution for {{ $labels.instance }} is taking more than 1 second.\n  VALUE = {{ $value }}s\n  LABELS: {{ $labels }}"
 
       - alert: GitHubSSLHandshakeSlow
-        expr: probe_http_ssl_duration_seconds{job="github-http"} > 1
+        # TLS phase of the HTTP probe (blackbox exposes no
+        # probe_http_ssl_duration_seconds metric)
+        expr: probe_http_duration_seconds{job="github-http", phase="tls"} > 1
         for: 5m
         labels:
           severity: warning
@@ -119,12 +121,9 @@ groups:
     interval: 1m
     rules:
       - alert: GitHubSLABreach
-        expr: |
-          (
-            sum(rate(probe_success{job="github-http"}[1h]))
-            /
-            count(probe_success{job="github-http"})
-          ) < 0.99
+        # probe_success is a 0/1 gauge — average it over time; rate() would
+        # always return ~0 and could never express availability
+        expr: avg(avg_over_time(probe_success{job="github-http"}[1h])) < 0.99
         for: 10m
         labels:
           severity: critical

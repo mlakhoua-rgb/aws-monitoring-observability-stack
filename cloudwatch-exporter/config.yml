@@ -1,0 +1,63 @@
+# CloudWatch Exporter configuration — example AWS service metrics.
+#
+# Notes:
+#  * Each metric listed costs CloudWatch GetMetricData API calls; keep the
+#    list tight and the period at 300s to control cost.
+#  * CloudWatch metrics arrive with a delay — set_timestamp false and the
+#    600s range below account for it.
+#  * S3 request metrics (4xxErrors) only exist for buckets with request
+#    metrics enabled in S3 → Metrics configuration.
+#  * The region below is what the exporter queries — edit it here. An
+#    AWS_REGION environment variable does NOT override this file; only
+#    credentials come from the environment.
+region: us-east-1
+period_seconds: 300
+range_seconds: 600
+set_timestamp: false
+
+metrics:
+  # EC2
+  - aws_namespace: AWS/EC2
+    aws_metric_name: CPUUtilization
+    aws_dimensions: [InstanceId]
+    aws_statistics: [Average]
+
+  # RDS
+  - aws_namespace: AWS/RDS
+    aws_metric_name: CPUUtilization
+    aws_dimensions: [DBInstanceIdentifier]
+    aws_statistics: [Average]
+  - aws_namespace: AWS/RDS
+    aws_metric_name: DatabaseConnections
+    aws_dimensions: [DBInstanceIdentifier]
+    aws_statistics: [Average]
+  - aws_namespace: AWS/RDS
+    aws_metric_name: FreeStorageSpace
+    aws_dimensions: [DBInstanceIdentifier]
+    aws_statistics: [Average]
+
+  # Application Load Balancer
+  - aws_namespace: AWS/ApplicationELB
+    aws_metric_name: TargetResponseTime
+    aws_dimensions: [LoadBalancer]
+    aws_statistics: [Average]
+  - aws_namespace: AWS/ApplicationELB
+    aws_metric_name: HTTPCode_Target_5XX_Count
+    aws_dimensions: [LoadBalancer]
+    aws_statistics: [Sum]
+
+  # Lambda
+  - aws_namespace: AWS/Lambda
+    aws_metric_name: Errors
+    aws_dimensions: [FunctionName]
+    aws_statistics: [Sum]
+  - aws_namespace: AWS/Lambda
+    aws_metric_name: Duration
+    aws_dimensions: [FunctionName]
+    aws_statistics: [Average]
+
+  # S3 (requires request metrics enabled on the bucket)
+  - aws_namespace: AWS/S3
+    aws_metric_name: 4xxErrors
+    aws_dimensions: [BucketName, FilterId]
+    aws_statistics: [Sum]

@@ -1,105 +1,96 @@
-# Prometheus Configuration for AWS Infrastructure Monitoring
-# Production-ready setup with service discovery and alerting
+# Prometheus configuration — local lab (docker compose).
+#
+# This file is self-contained: every scrape target below exists in
+# docker-compose.yml, so `docker compose up -d` yields a working stack with
+# the GitHub monitoring demo live. The AWS-side configuration (EC2 service
+# discovery, CloudWatch exporter) lives in prometheus-aws.yml.
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'aws-production'
-    environment: 'prod'
+    cluster: 'local-lab'
+    environment: 'dev'
 
 rule_files:
   - "alert_rules/*.yml"
+  - "alerts/*.yml"
 
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          - alertmanager:9093
+            - alertmanager:9093
 
 scrape_configs:
-  # Prometheus self-monitoring
+  # --- Stack self-monitoring ---
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  # Node Exporter for EC2 instances
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+
   - job_name: 'node-exporter'
-    ec2_sd_configs:
-      - region: us-east-1
-        port: 9100
-        filters:
-          - name: tag:Monitoring
-            values: [enabled]
-          - name: instance-state-name
-            values: [running]
-    relabel_configs:
-      # Use instance ID as the instance label
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: instance
-      # Add environment tag
-      - source_labels: [__meta_ec2_tag_Environment]
-        target_label: environment
-      # Add service tag
-      - source_labels: [__meta_ec2_tag_Service]
-        target_label: service
-      # Add availability zone
-      - source_labels: [__meta_ec2_availability_zone]
-        target_label: availability_zone
+    static_configs:
+      - targets: ['node-exporter:9100']
 
-  # AWS CloudWatch Exporter
+  - job_name: 'blackbox-exporter'
+    static_configs:
+      - targets: ['blackbox-exporter:9115']
+
+  # --- Optional: AWS CloudWatch metrics (aws compose profile) ---
+  # file_sd keeps the plain lab quiet: with no targets file the job has zero
+  # targets, so there is no dead-target noise and no false InstanceDown alert.
+  # To enable, run:
+  #   cp prometheus/targets/cloudwatch.yml.example prometheus/targets/cloudwatch.yml
+  #   docker compose --profile aws up -d
+  # Prometheus picks the file up live — no restart needed.
   - job_name: 'cloudwatch'
-    static_configs:
-      - targets: ['cloudwatch-exporter:9106']
+    scrape_interval: 5m # CloudWatch metrics update slowly; respect API cost
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/cloudwatch*.yml'
 
-  # Application metrics (if using custom exporters)
-  - job_name: 'application-metrics'
-    ec2_sd_configs:
-      - region: us-east-1
-        port: 8080
-        filters:
-          - name: tag:MetricsPort
-            values: ['8080']
-          - name: instance-state-name
-            values: [running]
-    metrics_path: /metrics
-    relabel_configs:
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: instance
-      - source_labels: [__meta_ec2_tag_Service]
-        target_label: service
-
-  # ECS Service Discovery (if using ECS)
-  - job_name: 'ecs-tasks'
-    ecs_sd_configs:
-      - region: us-east-1
-        cluster: production
-        port: 9090
-    relabel_configs:
-      - source_labels: [__meta_ecs_task_definition_family]
-        target_label: job
-      - source_labels: [__meta_ecs_service_name]
-        target_label: service
-      - source_labels: [__meta_ecs_cluster_name]
-        target_label: cluster
-
-  # Load Balancer metrics
-  - job_name: 'aws-alb'
-    static_configs:
-      - targets: ['localhost:9106']
+  # --- GitHub monitoring demo (blackbox probes) ---
+  # 2-minute interval keeps unauthenticated api.github.com probes well under
+  # GitHub's 60 requests/hour/IP rate limit. Alert `for:` durations assume
+  # this cadence.
+  - job_name: 'github-http'
     metrics_path: /probe
+    scrape_interval: 2m
+    scrape_timeout: 30s
     params:
-      module: [aws_alb]
-      # Replace with your ALB ARN
-      target: ['arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:loadbalancer/app/YOUR-ALB-NAME/YOUR-ALB-ID']
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://github.com
+          - https://api.github.com
+          - https://www.githubstatus.com/api/v2/status.json
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 
-# Remote write to long-term storage (optional)
-# Uncomment and configure when using a remote backend (e.g., Thanos, Cortex, Amazon Managed Prometheus)
-# remote_write:
-#   - url: "https://your-remote-write-endpoint/receive"
-#     sigv4:
-#       region: us-east-1
-#     queue_config:
-#       max_samples_per_send: 1000
-#       max_shards: 200
-#       capacity: 2500
+  # Separate low-frequency job for certificate expiry tracking.
+  - job_name: 'github-ssl'
+    metrics_path: /probe
+    scrape_interval: 15m
+    scrape_timeout: 30s
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://github.com
+          - https://api.github.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

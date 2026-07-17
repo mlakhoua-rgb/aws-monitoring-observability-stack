@@ -57,15 +57,16 @@ groups:
       description: "Network error rate is high on instance {{ $labels.instance }}. Rate: {{ $value }} errors/sec"
 
   # AWS CloudWatch Integration Alerts
-  - alert: ELBHighResponseTime
-    expr: aws_elb_target_response_time_average > 2
+  # (metric names as exported by cloudwatch-exporter/config.yml)
+  - alert: ALBHighResponseTime
+    expr: aws_applicationelb_target_response_time_average > 2
     for: 5m
     labels:
       severity: warning
       team: platform
     annotations:
-      summary: "High ELB response time"
-      description: "ELB response time is {{ $value }}s, which is above the 2s threshold"
+      summary: "High ALB target response time"
+      description: "ALB target response time is {{ $value }}s, which is above the 2s threshold"
 
   # RDS Alerts
   - alert: RDSHighCPU

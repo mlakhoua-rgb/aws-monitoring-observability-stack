@@ -1,92 +1,91 @@
-# AWS Monitoring & Observability Stack - Deployment Guide
+# AWS Monitoring & Observability Stack — Deployment Guide
 
-This guide provides step-by-step instructions for deploying the AWS Monitoring & Observability Stack using Terraform.
+Step-by-step instructions for deploying the stack to AWS with Terraform. For the local Docker Compose lab, see the [README quick start](../README.md#quick-start--working-demo-in-one-command).
 
 ## Prerequisites
 
-- **AWS Account:** An active AWS account with permissions to create the necessary resources (EC2, VPC, IAM, etc.).
-- **AWS CLI:** Configured with your credentials (`aws configure`).
-- **Terraform:** Version 1.6.0 or later.
-- **Git:** To clone the repository.
-- **A VPC with public and private subnets:** This stack is designed to be deployed into an existing VPC.
+- **AWS account** with permissions to create EC2, ALB, Auto Scaling, IAM, and security group resources.
+- **AWS CLI** configured (`aws configure`).
+- **Terraform** ≥ 1.6.0.
+- **An existing VPC** with at least two private subnets (Grafana ASG + Prometheus) and two public subnets (ALB). The stack does not create the network.
 
-## Deployment Steps
-
-### Step 1: Clone the Repository
+## Step 1: Clone the repository
 
 ```bash
 git clone https://github.com/mlakhoua-rgb/aws-monitoring-observability-stack.git
-cd aws-monitoring-observability-stack
+cd aws-monitoring-observability-stack/terraform
 ```
 
-### Step 2: Configure the Terraform Environment
+## Step 2 (recommended): Remote state backend
 
-Navigate to the development environment directory and create a `terraform.tfvars` file.
+For anything beyond a personal sandbox, uncomment and configure the `backend "s3"` block in `main.tf`, using a versioned, encrypted S3 bucket.
+
+## Step 3: Configure variables
 
 ```bash
-cd terraform/environments/dev
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-Edit the `terraform.tfvars` file with your specific VPC and subnet information, and set a secure password for the Grafana admin user.
+Edit `terraform.tfvars`:
 
-```hcl
-# terraform.tfvars
+| Variable | Meaning |
+|---|---|
+| `vpc_id`, `private_subnet_ids`, `public_subnet_ids` | The network to deploy into (ALB uses the public subnets; instances the private ones) |
+| `grafana_admin_password` | Grafana admin login. Note: delivered via user_data — see the security note below |
+| `alb_allowed_cidr_blocks` | Who can reach the Grafana ALB on :80 (default: everyone; restrict to office/VPN ranges where possible) |
+| `trusted_cidr_blocks` | Who may reach Prometheus :9090 directly (operators; Grafana's access is wired separately by security group) |
+| `prometheus_instance_type` / `grafana_instance_type` | Sizing; defaults t3.medium / t3.small |
 
-aws_region           = "us-east-1"
-environment          = "dev"
-vpc_id               = "vpc-xxxxxxxxxxxxxxxxx" # Your VPC ID
-private_subnet_ids   = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-yyyyyyyyyyyyyyyyy"] # Your private subnet IDs
-public_subnet_ids    = ["subnet-zzzzzzzzzzzzzzzzz", "subnet-aaaaaaaaaaaaaaaaa"] # Your public subnet IDs
-grafana_admin_password = "YourSecurePasswordHere"
-alert_email          = "your-email@example.com"
-```
-
-### Step 3: Deploy the Infrastructure
-
-1.  **Initialize Terraform:**
-
-    ```bash
-    terraform init
-    ```
-
-2.  **Plan the Deployment:**
-
-    ```bash
-    terraform plan
-    ```
-
-3.  **Apply the Configuration:**
-
-    ```bash
-    terraform apply
-    ```
-
-    Confirm the deployment by typing `yes`.
-
-### Step 4: Access Grafana
-
-Once the deployment is complete, Terraform will output the DNS name of the Grafana Application Load Balancer.
+## Step 4: Deploy
 
 ```bash
-terraform output grafana_url
+terraform init
+terraform plan    # review: 2 modules, security groups, IAM role
+terraform apply
 ```
 
-Open this URL in your web browser. You can log in with the username `admin` and the password you set in your `terraform.tfvars` file.
+## Step 5: Verify
 
-### Step 5: Configure Prometheus Data Source
+1. **Grafana:** `terraform output grafana_url` → open it, log in as `admin` with your configured password. The Prometheus datasource is already provisioned (written by user_data) — **Connections → Data sources → Prometheus → Test** should pass. Allow a few minutes after apply for user_data to finish on first boot.
+2. **Prometheus targets:** from a host inside `trusted_cidr_blocks`: `curl http://<prometheus_private_ip>:9090/api/v1/targets`. Instances tagged `Monitoring=enabled` (running node-exporter on :9100) appear as targets automatically.
+3. **ALB health:** the target group health check is `/api/health`; a `healthy` target means Grafana is actually serving, not just the instance running.
 
-In the Grafana UI, you may need to manually configure the Prometheus data source.
+## Step 6: Point Prometheus at your workloads
 
-1.  Go to **Configuration (gear icon) > Data Sources**.
-2.  Click **Add data source** and select **Prometheus**.
-3.  For the **URL**, enter the private IP address of your Prometheus instance (you can get this from the Terraform output: `terraform output prometheus_private_ip`). The URL should be in the format `http://<prometheus-private-ip>:9090`.
-4.  Click **Save & Test**.
+Tag any EC2 instance you want scraped:
 
-## Destroying the Infrastructure
+- `Monitoring=enabled` — node-exporter on :9100 (install it on the instance)
+- `MetricsPort=8080` — custom application `/metrics` endpoint
 
-To remove all the resources created by this stack, run:
+Security groups on *those* instances must allow the Prometheus SG on the scrape port — the stack cannot open other teams' security groups for you, by design.
+
+## Import the dashboards
+
+The AWS deployment provisions the datasource but not the dashboard files. Import them via the Grafana UI (**Dashboards → New → Import**, upload from `grafana/dashboards/`) or the HTTP API:
+
+```bash
+for d in ../grafana/dashboards/*.json; do
+  curl -s -X POST "http://<grafana-url>/api/dashboards/db" \
+    -H "Content-Type: application/json" \
+    -u "admin:<password>" \
+    -d "{\"dashboard\": $(cat "$d"), \"overwrite\": true}"
+done
+```
+
+## Production hardening checklist
+
+Before treating this as more than a demo (also listed in [ARCHITECTURE.md](ARCHITECTURE.md) → Deliberate limitations):
+
+- [ ] HTTPS listener with an ACM certificate on the ALB; redirect :80
+- [ ] Grafana admin credentials from Secrets Manager, or SSO/OAuth
+- [ ] `remote_write` to Amazon Managed Prometheus or Thanos for durable metrics
+- [ ] Deploy/point to an Alertmanager and wire real receivers
+- [ ] Restrict `alb_allowed_cidr_blocks` to known ranges
+
+## Destroying the infrastructure
 
 ```bash
 terraform destroy
 ```
+
+This removes only the monitoring stack's own resources; Prometheus TSDB data on the instance is lost with it.

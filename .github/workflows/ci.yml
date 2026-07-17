@@ -18,7 +18,9 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.6.0"
+          # 1.6.x binaries carry an expired HashiCorp signing key and fail
+          # `terraform init` with "openpgp: key expired" on provider install.
+          terraform_version: "1.9.8"
 
       - name: Terraform Init
         run: terraform init -backend=false
@@ -40,33 +42,80 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run tfsec
+      - name: Run tfsec (advisory)
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
           working_directory: terraform/
           soft_fail: true
 
   prometheus-lint:
-    name: Validate Prometheus Config
+    name: Validate Prometheus & Alertmanager Configs
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate prometheus.yml
+      - name: Validate Prometheus configs (local lab + AWS)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/prometheus:/etc/prometheus \
-            prom/prometheus:latest \
-            promtool check config /etc/prometheus/prometheus.yml
+            --entrypoint promtool \
+            prom/prometheus:v2.45.0 \
+            check config /etc/prometheus/prometheus.yml
+          docker run --rm \
+            -v ${{ github.workspace }}/prometheus:/etc/prometheus \
+            --entrypoint promtool \
+            prom/prometheus:v2.45.0 \
+            check config /etc/prometheus/prometheus-aws.yml
 
-      - name: Validate alert rules
+      - name: Validate all alert rules
+        # The glob only exists inside the container, so it must be expanded
+        # by a shell in there — promtool itself does not glob.
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/prometheus:/etc/prometheus \
-            prom/prometheus:latest \
-            promtool check rules /etc/prometheus/alert_rules/infrastructure.yml
+            --entrypoint /bin/sh \
+            prom/prometheus:v2.45.0 \
+            -c 'promtool check rules /etc/prometheus/alert_rules/*.yml /etc/prometheus/alerts/*.yml'
+
+      - name: Validate Alertmanager config
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/alertmanager:/etc/alertmanager \
+            --entrypoint amtool \
+            prom/alertmanager:v0.25.0 \
+            check-config /etc/alertmanager/alertmanager.yml
+
+  grafana-dashboards:
+    name: Validate Grafana Dashboards
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dashboards are valid, provisioning-ready JSON
+        run: |
+          python3 - <<'EOF'
+          import json, glob, sys
+          failed = False
+          for path in glob.glob('grafana/dashboards/*.json'):
+              with open(path) as f:
+                  data = json.load(f)
+              # File provisioning expects the raw dashboard object, not an
+              # API-style {"dashboard": ...} wrapper.
+              if 'dashboard' in data and 'panels' not in data:
+                  print(f'{path}: wrapped in "dashboard" key — provisioning cannot load it')
+                  failed = True
+                  continue
+              if not data.get('panels'):
+                  print(f'{path}: no panels found')
+                  failed = True
+                  continue
+              print(f'{path}: OK ({len(data["panels"])} panels)')
+          sys.exit(1 if failed else 0)
+          EOF
 
   docker-compose-lint:
     name: Validate docker-compose
@@ -76,5 +125,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate docker-compose.yml
-        run: docker compose config --quiet
+      - name: Validate docker-compose.yml (all profiles)
+        run: docker compose --profile aws --profile logs config --quiet
