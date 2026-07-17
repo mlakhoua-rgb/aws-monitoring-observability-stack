@@ -18,7 +18,9 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.6.0"
+          # 1.6.x binaries carry an expired HashiCorp signing key and fail
+          # `terraform init` with "openpgp: key expired" on provider install.
+          terraform_version: "1.9.8"
 
       - name: Terraform Init
         run: terraform init -backend=false
@@ -68,12 +70,14 @@ jobs:
             check config /etc/prometheus/prometheus-aws.yml
 
       - name: Validate all alert rules
+        # The glob only exists inside the container, so it must be expanded
+        # by a shell in there — promtool itself does not glob.
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/prometheus:/etc/prometheus \
-            --entrypoint promtool \
+            --entrypoint /bin/sh \
             prom/prometheus:v2.45.0 \
-            check rules /etc/prometheus/alert_rules/*.yml /etc/prometheus/alerts/*.yml
+            -c 'promtool check rules /etc/prometheus/alert_rules/*.yml /etc/prometheus/alerts/*.yml'
 
       - name: Validate Alertmanager config
         run: |
