@@ -105,7 +105,7 @@ services:
   # in cloudwatch-exporter/config.yml (an AWS_REGION env var would NOT
   # override it — only the credentials come from the environment).
   cloudwatch-exporter:
-    image: prom/cloudwatch-exporter:cloudwatch_exporter-0.15.5
+    image: prom/cloudwatch-exporter:v0.15.5
     container_name: cloudwatch-exporter
     profiles: ["aws"]
     ports:
@@ -113,6 +113,9 @@ services:
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # SSO/federated credentials are only valid with the session token;
+      # without it the exporter gets "security token invalid" (403).
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
     volumes:
       - ./cloudwatch-exporter/config.yml:/config/config.yml:ro
     restart: unless-stopped
