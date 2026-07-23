@@ -29,14 +29,14 @@ Before opening the PR, run the same validations CI runs:
 docker compose --profile aws --profile logs config --quiet
 docker run --rm -v $(pwd)/prometheus:/cfg --entrypoint promtool prom/prometheus:v2.45.0 check config /cfg/prometheus.yml
 docker run --rm -v $(pwd)/prometheus:/cfg --entrypoint promtool prom/prometheus:v2.45.0 check rules /cfg/alert_rules/*.yml /cfg/alerts/*.yml
-terraform -chdir=terraform fmt -check -recursive && terraform -chdir=terraform validate
+terraform -chdir=terraform init -backend=false && terraform -chdir=terraform fmt -check -recursive && terraform -chdir=terraform validate
 ```
 
 ## Styleguides
 
 ### Terraform Code
 - Use the standard Terraform formatting (`terraform fmt`).
-- Follow the official [Terraform style conventions](https://www.terraform.io/docs/language/style.html).
+- Follow the official [Terraform style conventions](https://developer.hashicorp.com/terraform/language/style).
 - Use descriptive names for variables and resources.
 
 ### Prometheus & AlertManager

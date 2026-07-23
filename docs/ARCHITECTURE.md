@@ -63,7 +63,7 @@ Grafana is fully file-provisioned: the Prometheus datasource is pinned to `uid: 
 
 1. **Scraping:** Prometheus pulls from node-exporter, blackbox-exporter (which probes external endpoints on demand), the CloudWatch exporter, and any discovered application `/metrics` endpoints.
 2. **Storage:** samples land in the Prometheus TSDB (15-day retention by default).
-3. **Evaluation:** alert rules evaluate every 15s; firing alerts go to Alertmanager.
+3. **Evaluation:** alert rules evaluate at their group interval (30s for most demo rules; 15s global default); firing alerts go to Alertmanager.
 4. **Routing:** Alertmanager groups, deduplicates, inhibits, and routes by severity to the configured receivers.
 5. **Visualization:** Grafana queries Prometheus over PromQL; users reach Grafana through the ALB (AWS) or localhost (lab).
 

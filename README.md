@@ -194,6 +194,7 @@ Every push and PR runs ([ci.yml](.github/workflows/ci.yml)):
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common issues and fixes
 - [docs/RUNBOOKS.md](docs/RUNBOOKS.md) — what to do when each alert fires
 - [WINDOWS_SETUP.md](WINDOWS_SETUP.md) — running the local lab on Windows
+- [IMPROVEMENTS_AND_RECOMMENDATIONS.md](IMPROVEMENTS_AND_RECOMMENDATIONS.md) — roadmap and future improvements
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
 
 ---

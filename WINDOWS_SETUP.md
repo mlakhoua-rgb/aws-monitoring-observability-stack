@@ -262,10 +262,10 @@ If you prefer a graphical interface:
 
 Once the stack is running:
 
-1. ✅ Access Grafana: http://localhost:3000
-2. ✅ View the GitHub monitoring dashboard
-3. ✅ Explore Prometheus: http://localhost:9090
-4. ✅ Check alerts: http://localhost:9093
+1. Access Grafana: http://localhost:3000
+2. View the GitHub monitoring dashboard
+3. Explore Prometheus: http://localhost:9090
+4. Check alerts: http://localhost:9093
 
 **Customize for your needs:**
 - Edit `prometheus/prometheus.yml` to add your own endpoints
@@ -319,7 +319,7 @@ winver
 
 ---
 
-**Ready to Monitor!** 🚀
+**Ready to Monitor!**
 
 Once everything is running, you'll have a complete monitoring stack tracking GitHub services in real-time. Use this as a template to monitor your own services!
 

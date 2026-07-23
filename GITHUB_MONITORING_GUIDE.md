@@ -1,14 +1,14 @@
 # GitHub Services Monitoring - Real-World Use Case
 
-**Author:** Mohamed Ben Lakhoua (AI-Augmented with Claude Code)
+**Author:** Mohamed Ben Lakhoua — developed with AI assistance (Claude Code) under human review
 **License:** MIT
-**Last Updated:** January 2026
+**Last Updated:** July 2026
 
-## 📋 Overview
+## Overview
 
 This guide demonstrates a real-world monitoring implementation for GitHub services, one of the world's most popular developer platforms. The monitoring stack tracks availability, performance, SSL certificate health, and provides comprehensive alerting.
 
-## 🎯 What This Monitors
+## What This Monitors
 
 ### Endpoints Monitored
 1. **GitHub Website** - `https://github.com`
@@ -27,7 +27,7 @@ only if you also raise the interval or authenticate the probes.
 - **SSL Certificates**: Expiry dates, validity
 - **SLA Compliance**: 99% availability threshold tracking
 
-## 🚀 Quick Start - Local Testing
+## Quick Start - Local Testing
 
 ### Prerequisites
 - Docker and Docker Compose installed
@@ -41,13 +41,13 @@ only if you also raise the interval or authenticate the probes.
 cd aws-monitoring-observability-stack
 
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Check service status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### Access the Services
@@ -66,7 +66,7 @@ docker-compose logs -f
 3. Navigate to **Dashboards** → **GitHub Services Monitoring**
 4. The dashboard will auto-refresh every 30 seconds
 
-## 📊 Dashboard Panels Explained
+## Dashboard Panels Explained
 
 ### 1. Status Indicators (Top Row)
 - **GitHub.com Status**: Real-time UP/DOWN status with color coding
@@ -93,7 +93,7 @@ docker-compose logs -f
   - Yellow zone (95-99%): Warning
   - Red zone (<95%): Critical
 
-## 🔔 Alert Rules
+## Alert Rules
 
 ### Critical Alerts (Immediate Action Required)
 
@@ -114,10 +114,10 @@ docker-compose logs -f
 | **GitHubSlowResponse** | Response time > 2s | 5 minutes | Elevated latency |
 | **GitHubHighDNSLatency** | DNS lookup > 1s | 5 minutes | DNS resolution issues |
 | **GitHubSSLHandshakeSlow** | SSL handshake > 1s | 5 minutes | SSL negotiation delays |
-| **GitHubHTTPError** | HTTP status 4xx | 3 minutes | Client errors detected |
+| **GitHubHTTPError** | HTTP status 4xx/5xx | 3 minutes | Error responses detected |
 | **GitHubSSLCertExpiringSoon** | Certificate expires in < 30 days | 1 hour | Plan SSL renewal |
 
-## 🔧 Configuration Files
+## Configuration Files
 
 ### Core Configuration Files
 
@@ -141,7 +141,7 @@ aws-monitoring-observability-stack/
 └── docker-compose.yml          # Local deployment orchestration
 ```
 
-## 📈 Customizing the Monitoring
+## Customizing the Monitoring
 
 ### Add More Endpoints
 
@@ -179,7 +179,7 @@ Edit `prometheus/alerts/github_alerts.yml`:
   for: 3m  # Change from 5m to 3m
 ```
 
-## 🔐 Production Deployment on AWS
+## Production Deployment on AWS
 
 ### Prerequisites
 - AWS account with appropriate permissions
@@ -214,11 +214,10 @@ After deployment:
    terraform output grafana_url
    ```
 
-2. Access Grafana at the ALB URL
-3. Login with credentials from terraform.tfvars
-4. The GitHub monitoring dashboard will be available
+2. Access Grafana at the ALB URL and log in with the credentials from terraform.tfvars
+3. The AWS deployment provisions the Prometheus datasource but not the dashboard files — import the GitHub monitoring dashboard as described in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#import-the-dashboards)
 
-## 📊 Understanding the Metrics
+## Understanding the Metrics
 
 ### Key Prometheus Metrics
 
@@ -256,7 +255,7 @@ count_over_time((probe_success{job="github-http"} == 0)[1h:])
 (probe_ssl_earliest_cert_expiry{job="github-ssl"} - time()) / 86400
 ```
 
-## 🧪 Testing Alerts
+## Testing Alerts
 
 ### Simulate Downtime
 
@@ -280,7 +279,7 @@ sudo sed -i '/127.0.0.1 github.com/d' /etc/hosts
 2. **In AlertManager UI**: http://localhost:9093
 3. **In Grafana**: Dashboard will show red status indicators
 
-## 🎓 Learning Outcomes
+## Learning Outcomes
 
 This real-world example demonstrates:
 
@@ -292,7 +291,7 @@ This real-world example demonstrates:
 6. **Dashboard Design**: Information hierarchy and visual clarity
 7. **Production Patterns**: High availability Grafana with ALB and Auto Scaling
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Prometheus Not Scraping
 ```bash
@@ -300,7 +299,7 @@ This real-world example demonstrates:
 curl http://localhost:9090/api/v1/targets | jq
 
 # Check Blackbox Exporter logs
-docker-compose logs blackbox-exporter
+docker compose logs blackbox-exporter
 ```
 
 ### Dashboard Shows No Data
@@ -318,7 +317,7 @@ curl http://localhost:9090/api/v1/rules | jq
 curl http://localhost:9093/api/v2/status | jq
 ```
 
-## 🚀 Next Steps
+## Next Steps
 
 ### Extend This Monitoring
 
@@ -343,7 +342,7 @@ curl http://localhost:9093/api/v2/status | jq
    - Set up Slack/Teams notifications
    - Create runbooks for each alert
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Dashboard Best Practices](https://grafana.com/docs/grafana/latest/best-practices/)
@@ -351,7 +350,7 @@ curl http://localhost:9093/api/v2/status | jq
 - [AlertManager Configuration](https://prometheus.io/docs/alerting/latest/configuration/)
 - [PromQL Cheat Sheet](https://promlabs.com/promql-cheat-sheet/)
 
-## 🤝 Contributing
+## Contributing
 
 This project is AI-augmented and open for contributions:
 - Report issues or bugs
@@ -363,6 +362,6 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ---
 
-**Built with ❤️ using AI-Augmented Development**
+**Developed with AI assistance (Claude Code) and human review**
 
 *This monitoring stack demonstrates production-ready observability patterns using modern tools and best practices.*
