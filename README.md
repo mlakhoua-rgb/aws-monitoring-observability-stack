@@ -39,6 +39,8 @@ Optional profiles:
 # query region in cloudwatch-exporter/config.yml). The cp enables the
 # Prometheus scrape job — without a targets file the job is empty by design,
 # so the plain lab never shows a dead target.
+# With SSO/federated credentials, AWS_SESSION_TOKEN must be set too, e.g.:
+#   eval "$(aws configure export-credentials --profile YOUR_PROFILE --format env)"
 cp prometheus/targets/cloudwatch.yml.example prometheus/targets/cloudwatch.yml
 docker compose --profile aws up -d
 
