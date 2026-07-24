@@ -5,6 +5,8 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-2.45-E6522C?logo=prometheus)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-10.0-F46800?logo=grafana)](https://grafana.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/mlakhoua-rgb/aws-monitoring-observability-stack)](https://github.com/mlakhoua-rgb/aws-monitoring-observability-stack/commits/master)
+[![GitHub stars](https://img.shields.io/github/stars/mlakhoua-rgb/aws-monitoring-observability-stack?style=social)](https://github.com/mlakhoua-rgb/aws-monitoring-observability-stack/stargazers)
 
 A Prometheus + Grafana + Alertmanager observability stack with two deployment paths:
 
@@ -12,6 +14,14 @@ A Prometheus + Grafana + Alertmanager observability stack with two deployment pa
 2. **AWS deployment (Terraform)** — Prometheus on EC2 with tag-based service discovery, Grafana in an Auto Scaling Group behind an ALB, security groups chained least-privilege (ALB → Grafana → Prometheus).
 
 Every config in this repo is loaded and validated in CI — `promtool`, `amtool`, `terraform validate`, dashboard JSON checks, and `docker compose config` all gate merges.
+
+---
+
+## Who is this for?
+
+- **SREs / platform engineers** who want a monitoring stack that actually runs on first `docker compose up` — live dashboards within ~2 minutes, no YAML archaeology
+- **Engineers learning observability** who want production-style patterns (severity-tiered routing, alert inhibition, rate-limit-aware probing) in a small, readable codebase
+- **Engineering leaders** looking at how AI-augmented delivery works when every config file is validated in CI
 
 ---
 
@@ -213,5 +223,9 @@ Developed AI-assisted (Claude and other coding agents) with human review of ever
 **LinkedIn:** [linkedin.com/in/benlakhoua](https://linkedin.com/in/benlakhoua)
 **Email:** Mohamed@metafive.ai
 **GitHub:** [github.com/mlakhoua-rgb](https://github.com/mlakhoua-rgb)
+
+---
+
+⭐ **Useful stack?** A star helps other engineers find it — and issues/PRs with your own alert rules and dashboards are very welcome.
 
 *Last updated: July 2026*
