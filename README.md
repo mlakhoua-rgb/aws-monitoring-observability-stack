@@ -209,9 +209,9 @@ Every push and PR runs ([ci.yml](.github/workflows/ci.yml)):
 
 ---
 
-## Development approach
+## How this was built
 
-Developed AI-assisted (Claude and other coding agents) with human review of every change — same as my day-to-day platform work. The engineering judgment is the human part: probe cadences that respect rate limits, alert thresholds and inhibition that avoid pager fatigue, and stating limitations instead of claiming HA that isn't there. CI enforces the floor: every config file in this repo is parsed and validated on every change.
+Specified and directed by Mohamed Ben Lakhoua; built by AI coding agents against those specifications — not hand-written. I review and validate every change before it merges. The engineering judgment is the human part: probe cadences that respect rate limits, alert thresholds and inhibition that avoid pager fatigue, and stating limitations instead of claiming HA that isn't there. CI enforces the floor: every config file in this repo is parsed and validated on every change.
 
 **Disclaimer:** educational/portfolio project. Thresholds, retention, and alert rules are examples — align them with your own SLOs before production use. No employer-specific content is included.
 
